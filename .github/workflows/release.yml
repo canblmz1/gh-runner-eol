@@ -1,0 +1,22 @@
+name: Release
+
+# Tag a commit (v0.1.0) and gh-extension-precompile builds binaries for every
+# platform gh supports and attaches them to the GitHub release, which is what
+# `gh extension install` downloads.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cli/gh-extension-precompile@v2
+        with:
+          go_version_file: go.mod
+        env:
+          GO_LDFLAGS: "-s -w -X main.version=${{ github.ref_name }}"

@@ -1,0 +1,10 @@
+/gh-runner-eol
+/gh-runner-eol.exe
+/runner-eol
+/runner-eol.exe
+/dist/
+/bin/
+*.sarif
+*.test
+*.out
+.DS_Store

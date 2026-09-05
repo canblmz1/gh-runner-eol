@@ -1,0 +1,90 @@
+name: "Runner EOL Guard"
+description: "Early warning for GitHub self-hosted runners that will stop receiving jobs. Reconciles live runners, pinned source versions and GitHub's official EOL schedule."
+author: "runner-eol"
+branding:
+  icon: "alert-triangle"
+  color: "orange"
+
+inputs:
+  target:
+    description: "ORG, OWNER/REPO or enterprise:SLUG to audit. Defaults to the current repository's owner organization."
+    required: false
+    default: ${{ github.repository_owner }}
+  token:
+    description: "Token with Self-hosted runners: read on the target. GITHUB_TOKEN cannot read org-level runners; use a fine-grained PAT or GitHub App token."
+    required: true
+  scan:
+    description: "Directory to scan for pinned runner versions (Dockerfile, ARC Helm values, scripts). Empty disables scanning."
+    required: false
+    default: "."
+  warn-days:
+    description: "Flag versions whose runtime support ends within this many days."
+    required: false
+    default: "14"
+  fail-on:
+    description: "Fail the step when any finding is at least this severe: overdue, warning, unknown, none."
+    required: false
+    default: "overdue"
+  format:
+    description: "Output format written to `output`: sarif, json or table."
+    required: false
+    default: "sarif"
+  output:
+    description: "Path of the report file."
+    required: false
+    default: "runner-eol.sarif"
+  version:
+    description: "runner-eol release to install (tag) or 'latest'."
+    required: false
+    default: "latest"
+
+outputs:
+  report:
+    description: "Path to the generated report file (upload with github/codeql-action/upload-sarif when format=sarif)."
+    value: ${{ steps.run.outputs.report }}
+  exit-code:
+    description: "0 = clean, 1 = findings crossed fail-on, 2 = error."
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install runner-eol
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        EXT_REPO: ${{ github.action_repository }}
+        EXT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if [ "$EXT_VERSION" = "latest" ]; then
+          gh extension install "$EXT_REPO" || gh extension upgrade runner-eol
+        else
+          gh extension install "$EXT_REPO" --pin "$EXT_VERSION" || true
+        fi
+        gh runner-eol --version
+
+    - name: Audit runner fleet
+      id: run
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TARGET: ${{ inputs.target }}
+        SCAN: ${{ inputs.scan }}
+        WARN_DAYS: ${{ inputs.warn-days }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        FORMAT: ${{ inputs.format }}
+        OUTPUT: ${{ inputs.output }}
+      run: |
+        set -uo pipefail
+        args=(audit "$TARGET" --warn-days "$WARN_DAYS" --fail-on "$FAIL_ON" --format "$FORMAT" --output "$OUTPUT")
+        if [ -n "$SCAN" ]; then args+=(--scan "$SCAN"); fi
+        gh runner-eol "${args[@]}"
+        code=$?
+        echo "report=$OUTPUT" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        # Always print a human summary to the job log as well.
+        if [ "$FORMAT" != "table" ]; then
+          gh runner-eol audit "$TARGET" --warn-days "$WARN_DAYS" --fail-on none --no-color ${SCAN:+--scan "$SCAN"} >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        fi
+        exit $code
