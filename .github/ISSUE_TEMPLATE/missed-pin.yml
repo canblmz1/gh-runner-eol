@@ -1,0 +1,25 @@
+name: Missed pinned version
+description: "runner-eol scan did not detect a runner version pinned in my source"
+title: "scan: missed pin in <file type>"
+labels: ["scan-rule", "good first issue"]
+body:
+  - type: textarea
+    id: line
+    attributes:
+      label: The line(s) that were not detected
+      description: Paste the exact line from your Dockerfile / values.yaml / .tf / .pkr.hcl / script. Redact anything private.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: File type / tool
+      placeholder: "ARC Helm values, Packer HCL, Ansible vars, ..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: runner-eol version
+      placeholder: "output of: gh runner-eol --version"

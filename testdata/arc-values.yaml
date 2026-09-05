@@ -1,0 +1,13 @@
+# Actions Runner Controller scale set values. ARC runs runners with
+# DisableUpdate=true, so whatever is pinned here is exactly what runs.
+githubConfigUrl: https://github.com/acme
+runnerScaleSetName: linux-x64
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.336.0
+        command: ["/home/runner/run.sh"]
+---
+# Legacy summerwind-based deployment left behind
+image: summerwind/actions-runner-dind:latest

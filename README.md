@@ -1,6 +1,15 @@
 # runner-eol
 
+[![CI](https://github.com/canblmz1/gh-runner-eol/actions/workflows/ci.yml/badge.svg)](https://github.com/canblmz1/gh-runner-eol/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/canblmz1/gh-runner-eol?sort=semver)](https://github.com/canblmz1/gh-runner-eol/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Early warning for GitHub self-hosted runners that are about to stop receiving jobs.
+
+> **Why now.** GitHub resumes full runner-version enforcement on **September 25, 2026**
+> (github.com and GitHub Enterprise Cloud), with runtime brownouts on Sep 7–18 where outdated
+> runners silently stop taking jobs. On Sep 3, 2026 GitHub shipped the API that publishes the
+> exact end-of-life date per runner version. This tool is the thinnest possible layer on top of it.
 
 GitHub retires runner versions on its own schedule. Runners that fall behind are rejected with
 `Runner version vX.Y.Z is deprecated and cannot receive messages` and every job targeting them
@@ -54,6 +63,12 @@ go install github.com/canblmz1/gh-runner-eol@latest
 ```
 
 Authentication is whatever `gh` already has. `GH_TOKEN` / `GITHUB_TOKEN` override it.
+
+Try it without any auth on the bundled fixture:
+
+```sh
+gh runner-eol scan ./testdata
+```
 
 ## Commands
 
