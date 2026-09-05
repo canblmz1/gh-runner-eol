@@ -50,6 +50,21 @@ var rules = []rule{
 	{"runner-version-variable", regexp.MustCompile(`(?i)\bRUNNER[_-]?VERSION\b["']?\s*[:=]\s*["']?v?` + semver), 1},
 }
 
+// Runner image on one line, version on a later `tag:` / `imageTag:` line.
+// Official ARC values often look like:
+//
+//	image:
+//	  repository: ghcr.io/actions/actions-runner
+//	  tag: "2.336.0"
+const helmTagWindow = 12
+
+var (
+	runnerRepoUnversioned = regexp.MustCompile(`(?i)\b((?:ghcr\.io/actions/actions-runner|summerwind/actions-runner)(?:-[\w.-]+)?)(?::latest)?["']?\s*$`)
+	helmTagVersion        = regexp.MustCompile(`(?i)\b(?:tag|imageTag|image_tag)\b["']?\s*:\s*["']?v?` + semver)
+	helmTagFloating       = regexp.MustCompile(`(?i)\b(?:tag|imageTag|image_tag)\b["']?\s*:\s*["']?latest\b`)
+	inlinePinnedImage     = regexp.MustCompile(`(?i)(?:ghcr\.io/actions/actions-runner|summerwind/actions-runner)(?:-[\w.-]+)?:v?` + semver)
+)
+
 var skipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true, ".terraform": true,
 	"dist": true, "build": true, ".idea": true, ".vscode": true,
@@ -127,33 +142,85 @@ func Reader(path string, r io.Reader) ([]Finding, error) {
 	sc := bufio.NewScanner(br)
 	sc.Buffer(make([]byte, 0, 64<<10), maxFileSize)
 	lineNo := 0
+	pendingRepo := ""
+	pendingLine := 0
 	for sc.Scan() {
 		lineNo++
 		line := sc.Text()
-		if !strings.Contains(line, "runner") && !strings.Contains(line, "RUNNER") && !strings.Contains(line, "Runner") {
+		if pendingRepo != "" && lineNo-pendingLine > helmTagWindow {
+			pendingRepo = ""
+		}
+
+		mentionsRunner := strings.Contains(line, "runner") || strings.Contains(line, "RUNNER") || strings.Contains(line, "Runner")
+		if mentionsRunner {
+			for _, rl := range rules {
+				for _, m := range rl.re.FindAllStringSubmatchIndex(line, -1) {
+					f := Finding{
+						Path:   path,
+						Line:   lineNo,
+						Column: m[0] + 1,
+						Match:  line[m[0]:m[1]],
+						Rule:   rl.name,
+					}
+					if rl.group == 0 {
+						f.Floating = true
+					} else {
+						f.Version = line[m[2*rl.group]:m[2*rl.group+1]]
+					}
+					key := fmt.Sprintf("%d:%d:%s", lineNo, m[0], f.Version)
+					if seen[key] {
+						continue
+					}
+					seen[key] = true
+					out = append(out, f)
+				}
+			}
+			if !inlinePinnedImage.MatchString(line) {
+				if m := runnerRepoUnversioned.FindStringSubmatch(line); m != nil {
+					pendingRepo = m[1]
+					pendingLine = lineNo
+				}
+			} else {
+				pendingRepo = ""
+			}
+		}
+
+		if pendingRepo == "" {
 			continue
 		}
-		for _, rl := range rules {
-			for _, m := range rl.re.FindAllStringSubmatchIndex(line, -1) {
-				f := Finding{
-					Path:   path,
-					Line:   lineNo,
-					Column: m[0] + 1,
-					Match:  line[m[0]:m[1]],
-					Rule:   rl.name,
-				}
-				if rl.group == 0 {
-					f.Floating = true
-				} else {
-					f.Version = line[m[2*rl.group]:m[2*rl.group+1]]
-				}
-				key := fmt.Sprintf("%d:%d:%s", lineNo, m[0], f.Version)
-				if seen[key] {
-					continue
-				}
+		if loc := helmTagVersion.FindStringSubmatchIndex(line); loc != nil {
+			ver := line[loc[2]:loc[3]]
+			f := Finding{
+				Path:    path,
+				Line:    lineNo,
+				Column:  loc[0] + 1,
+				Match:   strings.TrimSpace(line) + "  # " + pendingRepo,
+				Version: ver,
+				Rule:    "helm-image-tag",
+			}
+			key := fmt.Sprintf("%d:%d:%s", lineNo, loc[0], ver)
+			if !seen[key] {
 				seen[key] = true
 				out = append(out, f)
 			}
+			pendingRepo = ""
+			continue
+		}
+		if loc := helmTagFloating.FindStringIndex(line); loc != nil {
+			f := Finding{
+				Path:     path,
+				Line:     lineNo,
+				Column:   loc[0] + 1,
+				Match:    strings.TrimSpace(line) + "  # " + pendingRepo,
+				Rule:     "helm-image-tag-floating",
+				Floating: true,
+			}
+			key := fmt.Sprintf("%d:%d:", lineNo, loc[0])
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, f)
+			}
+			pendingRepo = ""
 		}
 	}
 	if err := sc.Err(); err != nil {

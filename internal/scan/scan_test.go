@@ -67,6 +67,63 @@ image: ghcr.io/actions/actions-runner:latest
 	}
 }
 
+func TestReaderHelmSplitRepositoryTag(t *testing.T) {
+	src := `
+# official-chart shape: repo and tag on separate lines
+image:
+  repository: ghcr.io/actions/actions-runner
+  pullPolicy: IfNotPresent
+  tag: "2.336.0"
+# summerwind split + floating
+    repository: summerwind/actions-runner-dind
+    tag: latest
+# stray tag must not match — no runner repo in the window
+tag: "2.300.0"
+`
+	fs, err := Reader("values.yaml", strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pin, float *Finding
+	for i := range fs {
+		switch fs[i].Rule {
+		case "helm-image-tag":
+			pin = &fs[i]
+		case "helm-image-tag-floating":
+			float = &fs[i]
+		}
+	}
+	if pin == nil || pin.Version != "2.336.0" || !strings.Contains(pin.Match, "ghcr.io/actions/actions-runner") {
+		t.Fatalf("split pin not found: %+v", fs)
+	}
+	if float == nil || !float.Floating {
+		t.Fatalf("split :latest not found: %+v", fs)
+	}
+	for _, f := range fs {
+		if f.Version == "2.300.0" {
+			t.Fatalf("stray tag matched: %+v", f)
+		}
+	}
+}
+
+func TestReaderHelmTagOutsideWindowIgnored(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("repository: ghcr.io/actions/actions-runner\n")
+	for i := 0; i < helmTagWindow+1; i++ {
+		b.WriteString("unrelated: true\n")
+	}
+	b.WriteString("tag: \"2.336.0\"\n")
+	fs, err := Reader("values.yaml", strings.NewReader(b.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range fs {
+		if f.Rule == "helm-image-tag" {
+			t.Fatalf("tag beyond window should be ignored: %+v", f)
+		}
+	}
+}
+
 func TestReaderSkipsBinary(t *testing.T) {
 	fs, err := Reader("bin", strings.NewReader("runner\x00ghcr.io/actions/actions-runner:2.335.0"))
 	if err != nil || len(fs) != 0 {

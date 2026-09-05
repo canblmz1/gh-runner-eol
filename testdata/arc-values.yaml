@@ -2,12 +2,20 @@
 # DisableUpdate=true, so whatever is pinned here is exactly what runs.
 githubConfigUrl: https://github.com/acme
 runnerScaleSetName: linux-x64
+# One-line pin (common in copied snippets)
 template:
   spec:
     containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:2.336.0
         command: ["/home/runner/run.sh"]
+---
+# Official chart shape: repository and tag on separate lines.
+# runner-eol must catch this; a same-line-only scanner will not.
+image:
+  repository: ghcr.io/actions/actions-runner
+  pullPolicy: IfNotPresent
+  tag: "2.334.0"
 ---
 # Legacy summerwind-based deployment left behind
 image: summerwind/actions-runner-dind:latest

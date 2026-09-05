@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/canblmz1/gh-runner-eol?sort=semver)](https://github.com/canblmz1/gh-runner-eol/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Early warning for GitHub self-hosted runners that are about to stop receiving jobs.
+Find the pinned runner image that will stop taking jobs — before GitHub does.
 
 > **Why now.** GitHub resumes full runner-version enforcement on **September 25, 2026**
 > (github.com and GitHub Enterprise Cloud). Before that, brownouts — outdated runners are
@@ -21,44 +21,42 @@ Early warning for GitHub self-hosted runners that are about to stop receiving jo
 > On Sep 3, 2026 GitHub shipped the API that publishes the exact end-of-life date per runner
 > version. This tool is the thinnest possible layer on top of it. Source: [GitHub changelog](https://github.blog/changelog/2026-06-12-github-actions-minimum-version-enforcement-timeline-for-self-hosted-runners/).
 
-**Seeing `Runner version v2.xxx.0 is deprecated and cannot receive messages` in your runner logs, or jobs stuck in `Queued`?** Your runner version is past its runtime end-of-life. Find out which of your runners and images are next, in one command:
+**Seeing `Runner version v2.xxx.0 is deprecated and cannot receive messages`, or jobs stuck in `Queued`?** If you run Actions Runner Controller, auto-update is off. The tag in `values.yaml` *is* the outage date. GitHub's runner list cannot see an image you have not scaled up yet.
 
 ```
 gh extension install canblmz1/gh-runner-eol
-gh runner-eol audit <your-org> --scan .
+gh runner-eol scan ./charts --org <your-org>     # pinned source + official EOL dates
+gh runner-eol audit <your-org> --scan .          # also the runners already registered
 ```
 
-GitHub retires runner versions on its own schedule. Runners that fall behind are rejected and
-every job targeting them sits in the queue forever. Actions Runner Controller disables self-update, so a pinned image
-tag is a scheduled outage — you just don't know the date.
+The live-runner half is a join over two GitHub APIs. The part GitHub will not build is the
+source scan: Dockerfiles, ARC Helm `repository:`/`tag:` pairs, `RUNNER_VERSION=`, tarball URLs.
 
-Since September 2026 GitHub publishes that date. `runner-eol` reconciles three things GitHub
-keeps apart and tells you what breaks, and when:
+Try it without a token on the bundled fixtures (output from this repo, 2026-09-05):
 
 ```
-live self-hosted runners       GET .../actions/runners                (reports each runner's version)
-versions pinned in source      Dockerfile · ARC Helm values · scripts (the runners you haven't scaled up yet)
-GitHub's official EOL dates    GET .../actions/runners/deprecations/{version}
-```
+$ gh runner-eol scan ./testdata --no-color
 
-```
-$ gh runner-eol audit acme --scan .
+runner-eol scan  2026-09-05 11:07 UTC
 
-runner-eol audit acme  2026-09-05 07:50 UTC
-
-43 self-hosted runners · 3 versions · 4 pinned refs in .
-
-  OVERDUE   18 runners   v2.334.0     runtime support ended 2026-08-10   26 days overdue
-  WARNING   12 runners   v2.336.0     runtime support ends 2026-09-15   10 days left
-  OK        13 runners   v2.337.0     no end-of-life scheduled
+5 pinned refs in testdata
 
 Pinned in source
-  OVERDUE   Dockerfile:1                  ghcr.io/actions/actions-runner:2.335.0   runtime support ended 2026-08-14   22 days overdue
-  WARNING   deploy/values.yaml:5          ghcr.io/actions/actions-runner:2.336.0   runtime support ends 2026-09-15   10 days left
-  OK        deploy/values.yaml:12         RUNNER_VERSION=2.337.0   no end-of-life scheduled
-  FLOAT     deploy/legacy.yaml:7          summerwind/actions-runner:latest  (always newest; not reproducible)
+  PINNED    Dockerfile:3                              ghcr.io/actions/actions-runner:2.335.0
+  PINNED    Dockerfile:4                              RUNNER_VERSION=2.334.0
+  PINNED    arc-values.yaml:10                        ghcr.io/actions/actions-runner:2.336.0
+  PINNED    arc-values.yaml:18                        tag: "2.334.0"  # ghcr.io/actions/actions-runner
+  FLOAT     arc-values.yaml:21                        summerwind/actions-runner-dind:latest  (always newest; not reproducible)
 
-Runners: 18 overdue · 12 warning · 13 healthy · 2 pinned refs at risk
+Pass --org or --repo to turn PINNED into overdue / N days left.
+```
+
+A live lookup, no fleet required:
+
+```
+$ gh runner-eol check 2.334.0 2.336.0 -R <any-repo-you-can-read>
+  OVERDUE   v2.334.0     runtime support ended 2026-08-10
+  OK        v2.336.0     runtime support ends 2026-11-05
 ```
 
 Exit code `1` when anything crosses `--fail-on` (default: `overdue`), `2` on tool errors.
@@ -102,10 +100,11 @@ Common flags: `--format table|json|sarif`, `--output FILE`, `--warn-days N` (def
 | Pattern | Example |
 | --- | --- |
 | Official image | `ghcr.io/actions/actions-runner:2.336.0` |
+| Helm split repo / tag | `repository: ghcr.io/actions/actions-runner` then `tag: "2.336.0"` within 12 lines |
 | ARC legacy image | `summerwind/actions-runner-dind:v2.331.0` |
 | Release tarball / download URL | `actions-runner-linux-x64-2.333.0.tar.gz`, `releases/download/v2.333.0/` |
-| Version variables | `ARG RUNNER_VERSION=`, `RUNNER_VERSION:`, `runnerVersion:` (ARC Helm) |
-| Floating tags | `:latest` — reported as informational |
+| Version variables | `ARG RUNNER_VERSION=`, `RUNNER_VERSION:`, `runnerVersion:` |
+| Floating tags | `:latest` on the image or on `tag:` — informational |
 
 `.git`, `node_modules`, `vendor`, `.terraform`, `dist`, `build` are skipped; binaries and files over 2 MiB are ignored.
 
@@ -170,9 +169,9 @@ For every distinct version (live or pinned) one call to the deprecation endpoint
 | `OK` | ends later, or no date scheduled yet (current release) | never |
 | `UNKNOWN` | runner reported no version, or API returned 404 (version too old to be tracked) | fails at `--fail-on unknown` |
 
-Observed behaviour worth knowing: the dates GitHub publishes are **not** "30 days after the
-next release" as the docs imply — in practice they land 63–71 days after the following
-release, and the exact day varies. That is why this tool asks GitHub instead of guessing.
+The docs say "update within 30 days of a release." The API returns a different, version-specific
+window (recent versions have been on the order of two months, not thirty days). Do not compute
+EOL from release dates. This tool asks GitHub.
 
 ## Scope
 
