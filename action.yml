@@ -39,9 +39,9 @@ inputs:
     required: false
     default: "runner-eol.sarif"
   version:
-    description: "runner-eol release to install (tag) or 'latest'."
+    description: "checkout = build the exact commit of this Action (default, reproducible). Or a release tag (v0.1.2) / 'latest' to install a GitHub Release binary instead."
     required: false
-    default: "latest"
+    default: "checkout"
 
 outputs:
   report:
@@ -54,6 +54,12 @@ outputs:
 runs:
   using: composite
   steps:
+    - uses: actions/setup-go@v5
+      if: ${{ inputs.version == 'checkout' }}
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache-dependency-path: ${{ github.action_path }}/go.sum
+
     - name: Install runner-eol
       shell: bash
       env:
@@ -61,12 +67,23 @@ runs:
         # action_repository is empty when the action is used via `uses: ./`
         EXT_REPO: ${{ github.action_repository || 'canblmz1/gh-runner-eol' }}
         EXT_VERSION: ${{ inputs.version }}
+        ACTION_PATH: ${{ github.action_path }}
+        ACTION_REF: ${{ github.action_ref }}
       run: |
         set -euo pipefail
-        if [ "$EXT_VERSION" = "latest" ]; then
-          gh extension install "$EXT_REPO" || gh extension upgrade runner-eol
+        if [ "$EXT_VERSION" = "checkout" ]; then
+          version="${ACTION_REF:-dev}"
+          version="${version#v}"
+          case "$version" in
+            main|master|HEAD|"") version=dev ;;
+          esac
+          # Build the tree this workflow invoked — same commit as action.yml.
+          ( cd "$ACTION_PATH" && go build -trimpath -ldflags="-s -w -X main.version=${version}" -o gh-runner-eol . )
+          gh extension install "$ACTION_PATH"
+        elif [ "$EXT_VERSION" = "latest" ]; then
+          gh extension install "$EXT_REPO"
         else
-          gh extension install "$EXT_REPO" --pin "$EXT_VERSION" || true
+          gh extension install "$EXT_REPO" --pin "$EXT_VERSION"
         fi
         gh runner-eol --version
 

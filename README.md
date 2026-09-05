@@ -143,6 +143,9 @@ jobs:
 Pinned-source findings carry file and line, so they annotate the exact line in the PR.
 Live-runner findings appear as logical locations in the code scanning tab.
 
+`uses: canblmz1/gh-runner-eol@v0` builds the binary from **that tag's source** (not
+`gh extension install …@latest`). The installed CLI matches the Action commit.
+
 No token that can read runners yet? Use `mode: scan` — it only needs the checkout and still
 resolves EOL dates when the token allows (otherwise pins are reported as `unknown`).
 
