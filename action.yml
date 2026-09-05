@@ -58,7 +58,7 @@ runs:
       if: ${{ inputs.version == 'checkout' }}
       with:
         go-version-file: ${{ github.action_path }}/go.mod
-        cache-dependency-path: ${{ github.action_path }}/go.sum
+        cache: true
 
     - name: Install runner-eol
       shell: bash
@@ -72,14 +72,20 @@ runs:
       run: |
         set -euo pipefail
         if [ "$EXT_VERSION" = "checkout" ]; then
+          action_path="$(cd "$ACTION_PATH" && pwd)"
           version="${ACTION_REF:-dev}"
           version="${version#v}"
           case "$version" in
             main|master|HEAD|"") version=dev ;;
           esac
           # Build the tree this workflow invoked — same commit as action.yml.
-          ( cd "$ACTION_PATH" && go build -trimpath -ldflags="-s -w -X main.version=${version}" -o gh-runner-eol . )
-          gh extension install "$ACTION_PATH"
+          # gh extension install only accepts OWNER/REPO, so drop the binary
+          # into the local extensions dir ourselves.
+          ( cd "$action_path" && go build -trimpath -ldflags="-s -w -X main.version=${version}" -o gh-runner-eol . )
+          ext_dir="${XDG_DATA_HOME:-$HOME/.local/share}/gh/extensions/gh-runner-eol"
+          mkdir -p "$ext_dir"
+          cp "$action_path/gh-runner-eol" "$ext_dir/gh-runner-eol"
+          chmod +x "$ext_dir/gh-runner-eol"
         elif [ "$EXT_VERSION" = "latest" ]; then
           gh extension install "$EXT_REPO"
         else
