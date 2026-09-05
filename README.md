@@ -7,13 +7,29 @@
 Early warning for GitHub self-hosted runners that are about to stop receiving jobs.
 
 > **Why now.** GitHub resumes full runner-version enforcement on **September 25, 2026**
-> (github.com and GitHub Enterprise Cloud), with runtime brownouts on Sep 7–18 where outdated
-> runners silently stop taking jobs. On Sep 3, 2026 GitHub shipped the API that publishes the
-> exact end-of-life date per runner version. This tool is the thinnest possible layer on top of it.
+> (github.com and GitHub Enterprise Cloud). Before that, brownouts — outdated runners are
+> rejected for a day at a time, then silently stop taking jobs:
+>
+> | Date | What happens to outdated runners |
+> |---|---|
+> | Sep 7 | cannot register |
+> | **Sep 9** | cannot register **and do not execute jobs** |
+> | Sep 11 | cannot register |
+> | Sep 14 · 16 · 18 | cannot register and do not execute jobs |
+> | **Sep 25** | full enforcement, permanently |
+>
+> On Sep 3, 2026 GitHub shipped the API that publishes the exact end-of-life date per runner
+> version. This tool is the thinnest possible layer on top of it. Source: [GitHub changelog](https://github.blog/changelog/2026-06-12-github-actions-minimum-version-enforcement-timeline-for-self-hosted-runners/).
 
-GitHub retires runner versions on its own schedule. Runners that fall behind are rejected with
-`Runner version vX.Y.Z is deprecated and cannot receive messages` and every job targeting them
-sits in the queue forever. Actions Runner Controller disables self-update, so a pinned image
+**Seeing `Runner version v2.xxx.0 is deprecated and cannot receive messages` in your runner logs, or jobs stuck in `Queued`?** Your runner version is past its runtime end-of-life. Find out which of your runners and images are next, in one command:
+
+```
+gh extension install canblmz1/gh-runner-eol
+gh runner-eol audit <your-org> --scan .
+```
+
+GitHub retires runner versions on its own schedule. Runners that fall behind are rejected and
+every job targeting them sits in the queue forever. Actions Runner Controller disables self-update, so a pinned image
 tag is a scheduled outage — you just don't know the date.
 
 Since September 2026 GitHub publishes that date. `runner-eol` reconciles three things GitHub
