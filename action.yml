@@ -53,7 +53,8 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
-        EXT_REPO: ${{ github.action_repository }}
+        # action_repository is empty when the action is used via `uses: ./`
+        EXT_REPO: ${{ github.action_repository || 'canblmz1/gh-runner-eol' }}
         EXT_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
