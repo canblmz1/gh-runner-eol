@@ -3,9 +3,11 @@ name: Release
 # Tag a commit (v0.1.0) and gh-extension-precompile builds binaries for every
 # platform gh supports and attaches them to the GitHub release, which is what
 # `gh extension install` downloads.
+# Only full semver tags build a release; the floating `v0` major tag used by
+# `uses: canblmz1/gh-runner-eol@v0` must not.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: write
