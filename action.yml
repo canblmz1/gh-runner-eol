@@ -6,13 +6,18 @@ branding:
   color: "orange"
 
 inputs:
+  mode:
+    description: "audit = live runners + pinned source (needs a token that can read runners). scan = pinned source only; EOL dates are still resolved if the token allows, otherwise reported as unknown."
+    required: false
+    default: "audit"
   target:
     description: "ORG, OWNER/REPO or enterprise:SLUG to audit. Defaults to the current repository's owner organization."
     required: false
     default: ${{ github.repository_owner }}
   token:
-    description: "Token with Self-hosted runners: read on the target. GITHUB_TOKEN cannot read org-level runners; use a fine-grained PAT or GitHub App token."
-    required: true
+    description: "Token with 'Self-hosted runners: read' (org/enterprise) or 'Administration: read' (repo) on the target. The workflow GITHUB_TOKEN cannot read runners; use a fine-grained PAT or GitHub App token for mode=audit."
+    required: false
+    default: ${{ github.token }}
   scan:
     description: "Directory to scan for pinned runner versions (Dockerfile, ARC Helm values, scripts). Empty disables scanning."
     required: false
@@ -70,6 +75,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
+        MODE: ${{ inputs.mode }}
         TARGET: ${{ inputs.target }}
         SCAN: ${{ inputs.scan }}
         WARN_DAYS: ${{ inputs.warn-days }}
@@ -78,14 +84,28 @@ runs:
         OUTPUT: ${{ inputs.output }}
       run: |
         set -uo pipefail
-        args=(audit "$TARGET" --warn-days "$WARN_DAYS" --fail-on "$FAIL_ON" --format "$FORMAT" --output "$OUTPUT")
-        if [ -n "$SCAN" ]; then args+=(--scan "$SCAN"); fi
-        gh runner-eol "${args[@]}"
+        common=(--warn-days "$WARN_DAYS" --fail-on "$FAIL_ON")
+        case "$TARGET" in
+          enterprise:*) scope=(--enterprise "${TARGET#enterprise:}") ;;
+          */*)          scope=(--repo "$TARGET") ;;
+          *)            scope=(--org "$TARGET") ;;
+        esac
+        if [ "$MODE" = "scan" ]; then
+          args=(scan "${SCAN:-.}" "${scope[@]}" "${common[@]}")
+        else
+          args=(audit "$TARGET" "${common[@]}")
+          if [ -n "$SCAN" ]; then args+=(--scan "$SCAN"); fi
+        fi
+
+        gh runner-eol "${args[@]}" --format "$FORMAT" --output "$OUTPUT"
         code=$?
         echo "report=$OUTPUT" >> "$GITHUB_OUTPUT"
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
-        # Always print a human summary to the job log as well.
-        if [ "$FORMAT" != "table" ]; then
-          gh runner-eol audit "$TARGET" --warn-days "$WARN_DAYS" --fail-on none --no-color ${SCAN:+--scan "$SCAN"} >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
-        fi
+
+        {
+          echo '### runner-eol'
+          echo '```'
+          gh runner-eol "${args[@]}" --fail-on none --no-color 2>&1
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY" || true
         exit $code

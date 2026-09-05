@@ -103,11 +103,23 @@ func (d ghDoer) Get(ctx context.Context, path string, out any) error {
 		return nil
 	}
 	var httpErr *api.HTTPError
-	if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
-		return fmt.Errorf("%s: %w", path, ErrNotFound)
+	if errors.As(err, &httpErr) {
+		switch httpErr.StatusCode {
+		case 404:
+			return fmt.Errorf("%s: %w", path, ErrNotFound)
+		case 403:
+			return fmt.Errorf("%s: %w", path, ErrForbidden)
+		}
 	}
 	return err
 }
+
+// ErrForbidden is returned (wrapped) on HTTP 403. The most common cause is the
+// default GITHUB_TOKEN inside a workflow, which cannot read self-hosted runners.
+var ErrForbidden = errors.New("HTTP 403: token cannot read self-hosted runners for this scope. " +
+	"Use a fine-grained PAT or GitHub App token with 'Self-hosted runners: read' (org/enterprise) " +
+	"or 'Administration: read' (repo). The workflow GITHUB_TOKEN never has this permission. " +
+	"To check pinned source without runner access, run `runner-eol scan`")
 
 // ListRunners returns every self-hosted runner in scope, following pagination.
 func (c *Client) ListRunners(ctx context.Context, scope Scope) ([]Runner, error) {

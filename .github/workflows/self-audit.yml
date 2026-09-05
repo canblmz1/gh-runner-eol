@@ -19,6 +19,9 @@ jobs:
       - uses: ./
         id: eol
         with:
+          # With a PAT/App token in RUNNER_EOL_TOKEN this audits live runners too;
+          # without one it falls back to scanning pinned source only.
+          mode: ${{ secrets.RUNNER_EOL_TOKEN && 'audit' || 'scan' }}
           target: ${{ github.repository }}
           token: ${{ secrets.RUNNER_EOL_TOKEN || github.token }}
           scan: .
