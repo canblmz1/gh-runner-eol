@@ -119,7 +119,7 @@ jobs:
           token: ${{ secrets.RUNNER_EOL_TOKEN }}   # fine-grained PAT or App token: Self-hosted runners: read
           scan: .
           fail-on: warning
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: ${{ steps.eol.outputs.report }}

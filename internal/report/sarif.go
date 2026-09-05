@@ -96,6 +96,7 @@ const (
 	rulePinnedOverdue = "runner-eol/pinned-overdue"
 	rulePinnedWarning = "runner-eol/pinned-expiring"
 	rulePinnedFloat   = "runner-eol/pinned-floating"
+	rulePinnedUnknown = "runner-eol/pinned-unresolved"
 )
 
 func sarifRules() []sarifRule {
@@ -122,6 +123,8 @@ func sarifRules() []sarifRule {
 			"The pinned runner version reaches runtime end-of-life within the warning window.", "warning"),
 		mk(rulePinnedFloat, "PinnedFloating", "Source uses a floating runner image tag",
 			"A :latest tag always resolves to the newest runner and never goes EOL, but builds are not reproducible. Informational.", "note"),
+		mk(rulePinnedUnknown, "PinnedUnresolved", "Source pins a runner version whose EOL date could not be resolved",
+			"The pinned version was found but GitHub's deprecation schedule could not be queried (no scope given, token lacks permission, or the version is unknown to GitHub). Grant a token that can read self-hosted runners to get a real verdict.", "note"),
 	}
 }
 
@@ -197,6 +200,9 @@ func WriteSARIF(w io.Writer, r *Report) error {
 		case p.Assessment != nil && p.Assessment.Status == eol.StatusWarning:
 			rule, level = rulePinnedWarning, "warning"
 			msg = fmt.Sprintf("%s pins runner v%s: %s", p.Match, p.Version, Describe(*p.Assessment))
+		case p.Assessment == nil || p.Assessment.Status == eol.StatusUnknown:
+			rule, level = rulePinnedUnknown, "note"
+			msg = fmt.Sprintf("%s pins runner v%s but its EOL date could not be resolved", p.Match, p.Version)
 		default:
 			continue
 		}

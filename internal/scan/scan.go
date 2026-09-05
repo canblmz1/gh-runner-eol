@@ -55,6 +55,12 @@ var skipDirs = map[string]bool{
 	"dist": true, "build": true, ".idea": true, ".vscode": true,
 }
 
+// Documentation mentions versions without deploying them; scanning it only
+// produces noise in Code Scanning.
+var skipExt = map[string]bool{
+	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".txt": true,
+}
+
 const maxFileSize = 2 << 20 // 2 MiB
 
 // Dir walks root and scans every text file.
@@ -68,6 +74,9 @@ func Dir(root string) ([]Finding, error) {
 			if path != root && skipDirs[d.Name()] {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+		if skipExt[strings.ToLower(filepath.Ext(path))] {
 			return nil
 		}
 		info, err := d.Info()

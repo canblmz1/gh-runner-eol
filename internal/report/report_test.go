@@ -115,7 +115,7 @@ func TestWriteSARIFIsValidAndActionable(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &log); err != nil {
 		t.Fatal(err)
 	}
-	if log.Version != "2.1.0" || len(log.Runs) != 1 || len(log.Runs[0].Tool.Driver.Rules) != 6 {
+	if log.Version != "2.1.0" || len(log.Runs) != 1 || len(log.Runs[0].Tool.Driver.Rules) != 7 {
 		t.Fatalf("bad sarif envelope: %s", buf.String())
 	}
 	res := log.Runs[0].Results
