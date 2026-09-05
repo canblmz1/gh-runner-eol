@@ -20,5 +20,4 @@ jobs:
       - uses: cli/gh-extension-precompile@v2
         with:
           go_version_file: go.mod
-        env:
-          GO_LDFLAGS: "-s -w -X main.version=${{ github.ref_name }}"
+          build_script_override: script/build.sh
