@@ -48,6 +48,15 @@ var rules = []rule{
 	{"runner-tarball", regexp.MustCompile(`actions-runner-(?:linux|osx|win)-(?:x64|arm64|arm)-` + semver), 1},
 	// Covers RUNNER_VERSION=, RUNNER_VERSION:, runner_version=, runnerVersion: (ARC values).
 	{"runner-version-variable", regexp.MustCompile(`(?i)\bRUNNER[_-]?VERSION\b["']?\s*[:=]\s*["']?v?` + semver), 1},
+	// Covers Ansible-style compound var names, e.g. github_runner_version:
+	// 2.336.0. Requires a prefix segment before "runner" so this never
+	// double-fires alongside runner-version-variable, which already covers
+	// the bare RUNNER_VERSION / runner_version form.
+	{"runner-version-ansible-var", regexp.MustCompile(`(?i)\b\w+[_-]runner[_-]?version\b["']?\s*[:=]\s*["']?v?` + semver), 1},
+	// Covers Chef attribute syntax, e.g.
+	// default['github_runner']['version'] = '2.336.0' or the symbol form
+	// default[:github_runner][:version] = '2.336.0'.
+	{"runner-version-chef-attribute", regexp.MustCompile(`(?i)\[:?['"]?[\w-]*runner[\w-]*['"]?\]\s*\[:?['"]?version['"]?\]\s*=\s*['"]?v?` + semver), 1},
 }
 
 // Runner image on one line, version on a later `tag:` / `imageTag:` line.

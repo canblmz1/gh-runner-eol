@@ -67,6 +67,39 @@ image: ghcr.io/actions/actions-runner:latest
 	}
 }
 
+func TestReaderDetectsAnsibleAndChefVars(t *testing.T) {
+	src := `
+github_runner_version: 2.336.0
+default['github_runner']['version'] = '2.336.0'
+default[:github_runner][:version] = '2.336.0'
+runner_version: 2.334.0
+`
+	fs, err := Reader("playbook.yml", strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRule := map[string]int{}
+	for _, f := range fs {
+		if f.Version != "2.336.0" && f.Version != "2.334.0" {
+			t.Fatalf("unexpected version on finding: %+v", f)
+		}
+		byRule[f.Rule]++
+	}
+	want := map[string]int{
+		"runner-version-ansible-var":    1, // github_runner_version:
+		"runner-version-chef-attribute": 2, // both bracket forms
+		"runner-version-variable":       1, // bare runner_version: still handled by the existing rule
+	}
+	for rule, count := range want {
+		if byRule[rule] != count {
+			t.Fatalf("rule %s matched %d times, want %d; got %+v", rule, byRule[rule], count, fs)
+		}
+	}
+	if len(fs) != 4 {
+		t.Fatalf("total findings = %d, want 4 (no double-counting across rules); got %+v", len(fs), fs)
+	}
+}
+
 func TestReaderHelmSplitRepositoryTag(t *testing.T) {
 	src := `
 # official-chart shape: repo and tag on separate lines
