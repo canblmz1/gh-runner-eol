@@ -1,6 +1,6 @@
 name: "Runner EOL Guard"
 description: "Early warning for GitHub self-hosted runners that will stop receiving jobs. Reconciles live runners, pinned source versions and GitHub's official EOL schedule."
-author: "runner-eol"
+author: "canblmz1"
 branding:
   icon: "alert-triangle"
   color: "orange"

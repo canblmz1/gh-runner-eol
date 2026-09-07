@@ -6,6 +6,8 @@
 
 Find the pinned runner image that will stop taking jobs — before GitHub does.
 
+Maintained by [@canblmz1](https://github.com/canblmz1).
+
 > **Why now.** GitHub resumes full runner-version enforcement on **September 25, 2026**
 > (github.com and GitHub Enterprise Cloud). Before that, brownouts — outdated runners are
 > rejected for a day at a time, then silently stop taking jobs:
