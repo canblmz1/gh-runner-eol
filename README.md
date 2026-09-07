@@ -104,6 +104,9 @@ Common flags: `--format table|json|sarif`, `--output FILE`, `--warn-days N` (def
 | ARC legacy image | `summerwind/actions-runner-dind:v2.331.0` |
 | Release tarball / download URL | `actions-runner-linux-x64-2.333.0.tar.gz`, `releases/download/v2.333.0/` |
 | Version variables | `ARG RUNNER_VERSION=`, `RUNNER_VERSION:`, `runnerVersion:` |
+| Terraform / Packer | `variable "runner_version" { default = "2.336.0" }` (single-line) |
+| Ansible | `github_runner_version: 2.336.0` |
+| Chef | `default['github_runner']['version'] = '2.336.0'` |
 | Floating tags | `:latest` on the image or on `tag:` — informational |
 
 `.git`, `node_modules`, `vendor`, `.terraform`, `dist`, `build` are skipped; binaries and files over 2 MiB are ignored.

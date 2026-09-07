@@ -48,6 +48,11 @@ var rules = []rule{
 	{"runner-tarball", regexp.MustCompile(`actions-runner-(?:linux|osx|win)-(?:x64|arm64|arm)-` + semver), 1},
 	// Covers RUNNER_VERSION=, RUNNER_VERSION:, runner_version=, runnerVersion: (ARC values).
 	{"runner-version-variable", regexp.MustCompile(`(?i)\bRUNNER[_-]?VERSION\b["']?\s*[:=]\s*["']?v?` + semver), 1},
+	// Covers Terraform/Packer HCL variable blocks that pin the runner via a
+	// default, e.g. variable "runner_version" { default = "2.336.0" }.
+	// Scanning is line-by-line (see Reader below), so this only matches the
+	// common single-line form; a default split across multiple lines isn't covered.
+	{"runner-version-hcl-variable", regexp.MustCompile(`(?i)\bvariable\b\s+["']?[\w-]*runner[_-]?version[\w-]*["']?\s*\{[^{}]*\bdefault\s*=\s*["']?v?` + semver), 1},
 	// Covers Ansible-style compound var names, e.g. github_runner_version:
 	// 2.336.0. Requires a prefix segment before "runner" so this never
 	// double-fires alongside runner-version-variable, which already covers

@@ -100,6 +100,40 @@ runner_version: 2.334.0
 	}
 }
 
+func TestReaderDetectsHCLVariableBlock(t *testing.T) {
+	src := `
+variable runner_version { default = 2.336.0 }
+variable "runner_version" { default = "2.336.0" }
+locals { runner_version = 2.339.0 }
+`
+	fs, err := Reader("main.tf", strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hclVariableHits int
+	for _, f := range fs {
+		switch f.Rule {
+		case "runner-version-hcl-variable":
+			if f.Version != "2.336.0" {
+				t.Fatalf("rule runner-version-hcl-variable version = %s want 2.336.0", f.Version)
+			}
+			hclVariableHits++
+		case "runner-version-variable":
+			// The locals{} assignment on line 4 is already covered by the
+			// existing rule; it must not also fire the new HCL-block rule
+			// (no "variable" keyword on that line).
+			if f.Version != "2.339.0" {
+				t.Fatalf("rule runner-version-variable version = %s want 2.339.0", f.Version)
+			}
+		default:
+			t.Fatalf("unexpected rule %s matched: %+v", f.Rule, f)
+		}
+	}
+	if hclVariableHits != 2 {
+		t.Fatalf("runner-version-hcl-variable matched %d times, want 2 (bare and quoted variable name); got %+v", hclVariableHits, fs)
+	}
+}
+
 func TestReaderHelmSplitRepositoryTag(t *testing.T) {
 	src := `
 # official-chart shape: repo and tag on separate lines
